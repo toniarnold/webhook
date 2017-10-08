@@ -31,7 +31,7 @@ args = parser.parse_args()
 
 
 config = configparser.ConfigParser()
-config.read('webhook.ini')
+config.read('webhook.ini', encoding='utf-8')
 
 WIN_PC = config['suspend']['WIN_PC']
 WIN_USER = config['suspend']['WIN_USER']
@@ -141,6 +141,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pp.pprint(msg)
             
         if msg.get('password') != PASSWORD:
+            print("Authentication failure")
             time.sleep(10)
             self.sendresponse(403)
             return
@@ -158,6 +159,8 @@ def command(cmd):
     elif cmd == 'suspend':
         suspend()
     else:
+        if not cmd is None:
+            print("Unknown command {0}".format(cmd))
         return False
     return True
 
@@ -167,8 +170,8 @@ def wake():
         send_magic_packet(MAC)
 
 def suspend():
-    print("Hibernate {0}".format(WIN_PC))
-    cmd = "psshutdown -d -t 00 -v 00"   # suspend, needs "run as administrator"
+    print("Suspend {0}".format(WIN_PC))
+    cmd = "psshutdown -d -t 00 -v 00"   # requires the "Run as administrator" option
     ssh = "su {0} -c 'ssh {1}@{2} \"{3}\" '".format(SSH_USER, WIN_USER, WIN_PC, cmd)
     if args.verbose:
         print(ssh)
