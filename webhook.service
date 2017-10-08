@@ -1,0 +1,14 @@
+[Unit]
+Description=webhook.py Server für IFTTT Webhooks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/etc/network
+ExecStart=/etc/network/webhook.py
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=default.target
