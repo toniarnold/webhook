@@ -1,5 +1,5 @@
 # IFTTT Webhook
-[IFTTT](https://ifttt.com/) webhook server for suspend/wake on lan a Windows-PC.
+[IFTTT](https://ifttt.com/) webhook server to suspend/wake on lan a Windows-PC.
 
 ## Prerequisites
 
