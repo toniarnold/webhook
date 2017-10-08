@@ -7,7 +7,7 @@
 2. [Sysinternals PsShutdown](https://docs.microsoft.com/en-us/sysinternals/downloads/psshutdown) configured to run as administrator.
 3. Windows and NIC configured for Wake On Lan (WOL) with a magic packet.
 4. Linux server with systemd and Python 3.5+, e.g. a [Raspberry Pi](https://www.raspberrypi.org/learning/hardware-guide/components/raspberry-pi/).
-5. A public IP address and name with a valid SSL certificate, a [Let’s Encrypt](https://letsencrypt.org/)  certificate for a DDNS name will do.
+5. Public IP address and name with a valid SSL certificate, a [Let’s Encrypt](https://letsencrypt.org/)  certificate for a DDNS name will do.
 
 
 ## Configuration/Installation
@@ -17,4 +17,4 @@
 3. Create two IFTTT applets with a `if this`-Button Widget and a `then that`-Webhook with method `POST` and Content Type `application/json` and the respective `wake` and `suspend` commands in the `example.json` format.
 4. Run the server in verbose mock mode (no communication with the Windows-PC) with `sudo webhook.py -m -v` and check the IFTTT applets.
 5. To double check run the server in production mode with just `sudo webhook.py`.
-6. run `sudo make install` to install the `webhook.service` as a system service.
+6. Run `sudo make install` to install the `webhook.service` as a system service.
