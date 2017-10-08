@@ -7,7 +7,7 @@
 2. [Sysinternals PsShutdown](https://docs.microsoft.com/en-us/sysinternals/downloads/psshutdown) configured to run as administrator.
 3. Windows and NIC configured for Wake On Lan (WOL) with a magic packet.
 4. Linux server with systemd and Python 3.5+, e.g. a [Raspberry Pi](https://www.raspberrypi.org/learning/hardware-guide/components/raspberry-pi/).
-5. A public IP address and name with a valid SSL certificate, a [Let’s Encrypt](https://letsencrypt.org/)  certificate for a DynDNS name will do.
+5. A public IP address and name with a valid SSL certificate, a [Let’s Encrypt](https://letsencrypt.org/)  certificate for a DDNS name will do.
 
 
 ## Configuration/Installation
