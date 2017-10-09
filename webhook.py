@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -u
 
-# IFTTT Webhook for suspending/waking up a windows PC
+helptext = """IFTTT Webhook for json requests to control a windows PC.
+Supported commands: wake, suspend, poweroff"""
 
 
 import argparse
@@ -20,13 +21,13 @@ import time
 import subprocess
 
 
-helptext = """webhook.py webserver for IFTTT json requests"""
 parser = argparse.ArgumentParser(description=helptext)
 parser.add_argument("-v", "--verbose", action="store_true",
     help="""verbose output""")
 parser.add_argument("-m", "--mock", action="store_true",
     help="""don't actually cause any actions within the network""")
-parser.add_argument('command', nargs='?', help="""command to execute directly instead of starting the server""")
+parser.add_argument('command', nargs='?',
+    help="""command to execute directly instead of starting the server""")
 args = parser.parse_args()
 
 
@@ -48,7 +49,51 @@ HTTPS_PORT = int(config['webhook']['HTTPS_PORT'])
 PASSWORD = config['webhook']['PASSWORD']
 
 
-# From https://github.com/remcohaszing/pywakeonlan/blob/master/wakeonlan.py
+# Command dispatcher and implementations
+
+def command(cmd):
+    """Command dispatcher. Only interpret known commands, otherwise return False."""
+    if cmd == 'wake':
+        wake()
+    elif cmd == 'suspend':
+        suspend()
+    elif cmd == 'poweroff':
+        poweroff()
+    else:
+        if not cmd is None:
+            print("Unknown command {0}".format(cmd))
+        return False
+    return True
+
+def wake():
+    print("Wake up {0}".format(WIN_PC))
+    if not args.mock:
+        send_magic_packet(MAC)
+
+def suspend():
+    print("Suspend {0}".format(WIN_PC))
+    wincommand("psshutdown -d -t 00 -v 00")
+
+def poweroff():
+    print("Poweroff {0}".format(WIN_PC))
+    wincommand("psshutdown -k -t 00 -v 00")
+
+
+# SSH to the Windows PC
+
+def wincommand(cmd):
+    """Ececute a command on the Windows-PC."""
+    ssh = "su {0} -c 'ssh {1}@{2} \"{3}\" '".format(SSH_USER, WIN_USER, WIN_PC, cmd)
+    if args.verbose:
+        print(ssh)
+    if not args.mock:
+        try:
+            subprocess.run(ssh, shell=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+# WOL from https://github.com/remcohaszing/pywakeonlan/blob/master/wakeonlan.py
 
 def create_magic_packet(macaddress):
     """
@@ -112,7 +157,7 @@ def send_magic_packet(*macs, **kwargs):
     sock.close()
 
 
- 
+# HTTPS server
 
 class Handler(http.server.BaseHTTPRequestHandler):
     
@@ -147,40 +192,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         if not command(msg.get('command')):
-            self.sendresponse(400) 
+            self.sendresponse(400)
+            return
         
         self.sendresponse(200) 
   
-
-def command(cmd):
-    """Only interpret known commands, otherwise return False."""
-    if cmd == 'wake':
-        wake()
-    elif cmd == 'suspend':
-        suspend()
-    else:
-        if not cmd is None:
-            print("Unknown command {0}".format(cmd))
-        return False
-    return True
-
-def wake():
-    print("Wake up {0}".format(WIN_PC))
-    if not args.mock:
-        send_magic_packet(MAC)
-
-def suspend():
-    print("Suspend {0}".format(WIN_PC))
-    cmd = "psshutdown -d -t 00 -v 00"   # requires the "Run as administrator" option
-    ssh = "su {0} -c 'ssh {1}@{2} \"{3}\" '".format(SSH_USER, WIN_USER, WIN_PC, cmd)
-    if args.verbose:
-        print(ssh)
-    if not args.mock:
-        try:
-            subprocess.run(ssh, shell=True, timeout=10)
-        except subprocess.TimeoutExpired:
-            pass
-    
 
 def start_http():
     httpd = socketserver.TCPServer(("", HTTPS_PORT), Handler)
