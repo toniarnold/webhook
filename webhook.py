@@ -88,7 +88,7 @@ def wincommand(cmd):
         print(ssh)
     if not args.mock:
         try:
-            subprocess.run(ssh, shell=True, timeout=10)
+            subprocess.run(ssh, shell=True, timeout=30)
         except subprocess.TimeoutExpired:
             pass
 
