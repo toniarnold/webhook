@@ -1,5 +1,5 @@
 # IFTTT Webhook SSL server
-[IFTTT](https://ifttt.com/) Webhook SSL server to suspend/wake on lan/poweroff a Windows-PC.
+[IFTTT](https://ifttt.com/) [Webhook](https://ifttt.com/maker_webhooks) SSL server to suspend/wake on lan/poweroff a Windows-PC.
 
 ## Prerequisites
 

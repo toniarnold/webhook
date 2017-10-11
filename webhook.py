@@ -167,6 +167,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         
     def do_GET(self):
+        """Only respond with a HTML page to GET requests in verbose mode"""
+        if not args.verbose:
+            self.sendresponse(400)
+            return
         self.sendresponse(200)
         self.wfile.write("<html><head><title>IFTTT Webhook</title></head>".encode("utf-8"))
         self.wfile.write("<body><p>IFTTT Webhook</p>".encode("utf-8"))
