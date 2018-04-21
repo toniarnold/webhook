@@ -1,13 +1,14 @@
 #!/usr/bin/python3 -u
 
 helptext = """IFTTT Webhook for json requests to control a windows PC.
-Supported commands: wake, suspend, poweroff"""
+Supported commands: wake, suspend, poweroff, poweroff_linux, reboot_linux"""
 
 
 import argparse
 import configparser
 import pprint
 pp = pprint.PrettyPrinter(width=1)
+import logging
 import binascii
 import socket
 import struct
@@ -22,70 +23,93 @@ import subprocess
 
 
 parser = argparse.ArgumentParser(description=helptext)
-parser.add_argument("-v", "--verbose", action="store_true",
-    help="""verbose output""")
+parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-m", "--mock", action="store_true",
     help="""don't actually cause any actions within the network""")
 parser.add_argument('command', nargs='?',
     help="""command to execute directly instead of starting the server""")
+parser.add_argument("-q", "--quiet", help="set logging to ERROR",
+                    action="store_const", dest="loglevel",
+                    const=logging.ERROR, default=logging.INFO)
+parser.add_argument("-d", "--debug", help="set logging to DEBUG",
+                    action="store_const", dest="loglevel",
+                    const=logging.DEBUG, default=logging.INFO)
 args = parser.parse_args()
 
 
 config = configparser.ConfigParser()
 config.read('webhook.ini', encoding='utf-8')
-
-WIN_PC = config['suspend']['WIN_PC']
-WIN_USER = config['suspend']['WIN_USER']
-SSH_USER = config['suspend']['SSH_USER']
-
+# WOL send_magic_packet conf
 MAC = config['wake']['MAC']
-BROADCAST_IP = WIN_PC   # '255.255.255.255'
+BROADCAST_IP = config['win']['HOST']   # '255.255.255.255'
 DEFAULT_PORT = int(config['wake']['PORT'])
 
-SSL_DIR = config['webhook']['SSL_DIR']
-SSL_KEY = config['webhook']['SSL_KEY']
-SSL_CERT = config['webhook']['SSL_CERT']
-HTTPS_PORT = int(config['webhook']['HTTPS_PORT'])
-PASSWORD = config['webhook']['PASSWORD']
+
+logging.basicConfig(level=args.loglevel,
+                    format='%(levelname)-8s %(message)s')
+_log = logging.getLogger('webhook')
+
 
 
 # Command dispatcher and implementations
 
 def command(cmd):
     """Command dispatcher. Only interpret known commands, otherwise return False."""
+    if cmd is None:
+        return False
+    _log.info("Received command {0}".format(cmd))
     if cmd == 'wake':
         wake()
     elif cmd == 'suspend':
         suspend()
     elif cmd == 'poweroff':
         poweroff()
+    elif cmd == 'poweroff_linux':
+        poweroff_linux()
+    elif cmd == 'reboot_linux':
+        reboot_linux()
     else:
-        if not cmd is None:
-            print("Unknown command {0}".format(cmd))
+        _log.error("Unknown command {0}".format(cmd))
         return False
     return True
 
 def wake():
-    print("Wake up {0}".format(WIN_PC))
+    _log.debug("Wake up {0}".format(config['win']['host']))
     if not args.mock:
         send_magic_packet(MAC)
 
 def suspend():
-    print("Suspend {0}".format(WIN_PC))
-    wincommand("psshutdown -d -t 00 -v 00")
+    _log.debug("Suspend {0}".format(config['win']['host']))
+    remote_command("psshutdown -d -t 00 -v 00", 
+                   config['win']['user'],
+                   config['win']['host'])
 
 def poweroff():
-    print("Poweroff {0}".format(WIN_PC))
-    wincommand("psshutdown -k -t 00 -v 00")
+    _log.debug("Poweroff {0}".format(config['win']['host']))
+    remote_command("psshutdown -k -t 00 -v 00", 
+                   config['win']['user'],
+                   config['win']['host'])
+
+def poweroff_linux():
+    _log.debug("Poweroff {0}".format(config['linux']['host']))
+    remote_command("sudo chvt 1 ; sudo halt", 
+                   config['linux']['user'],
+                   config['linux']['host'])
+
+def reboot_linux():
+    _log.debug("Poweroff {0}".format(config['linux']['host']))
+    remote_command("sudo chvt 1 ; sudo reboot", 
+                   config['linux']['user'],
+                   config['linux']['host'])
 
 
 # SSH to the Windows PC
 
-def wincommand(cmd):
-    """Ececute a command on the Windows-PC."""
-    ssh = "su {0} -c 'ssh {1}@{2} \"{3}\" '".format(SSH_USER, WIN_USER, WIN_PC, cmd)
-    if args.verbose:
-        print(ssh)
+def remote_command(cmd, remote_user, remote_host):
+    """Ececute a command on the remote host."""
+    ssh = "su {0} -c 'ssh {1}@{2} \"{3}\" '".format(
+            config['webhook']['ssh_user'], remote_user, remote_host, cmd)
+    _log.debug(ssh)
     if not args.mock:
         try:
             subprocess.run(ssh, shell=True, timeout=30)
@@ -148,12 +172,10 @@ def send_magic_packet(*macs, **kwargs):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     #sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.connect((ip, port))
-    if args.verbose:
-        print("connected to " + ip)
+    _log.debug("connected to " + ip)
     for packet in packets:
         sock.send(packet)
-        if args.verbose:
-            print("sent packet {0}".format(binascii.hexlify(packet)))
+        _log.debug("sent packet {0}".format(binascii.hexlify(packet)))
     sock.close()
 
 
@@ -189,13 +211,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if args.verbose:
             pp.pprint(msg)
             
-        if msg.get('password') != PASSWORD:
-            print("Authentication failure")
+        if msg.get('password') != config['webhook']['password']:
+            _log.error("Authentication failure")
             time.sleep(10)
             self.sendresponse(403)
             return
 
         if not command(msg.get('command')):
+            _log.error("Unknown command {0}".format(msg.get('command')))
             self.sendresponse(400)
             return
         
@@ -203,12 +226,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
   
 
 def start_http():
-    httpd = socketserver.TCPServer(("", HTTPS_PORT), Handler)
+    httpd = socketserver.TCPServer(("", int(config['webhook']['https_port'])), Handler)
     httpd.socket = ssl.wrap_socket(httpd.socket, 
-                                   keyfile=os.path.join(SSL_DIR, SSL_KEY),
-                                   certfile=os.path.join(SSL_DIR, SSL_CERT), 
-                                   server_side=True)
-    print("Starting the webhook.py server")
+       keyfile=os.path.join(config['webhook']['ssl_dir'], config['webhook']['ssl_key']),
+       certfile=os.path.join(config['webhook']['ssl_dir'], config['webhook']['ssl_cert']), 
+       server_side=True)
+    _log.info("Starting the webhook.py server")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -218,5 +241,7 @@ def start_http():
 
 
 if __name__ == '__main__':
-    if not command(args.command):
+    if args.command:
+        command(args.command)
+    else:
         start_http()

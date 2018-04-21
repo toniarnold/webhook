@@ -1,5 +1,5 @@
 # IFTTT Webhook SSL server
-[IFTTT](https://ifttt.com/) [Webhook](https://ifttt.com/maker_webhooks) SSL server to suspend/wake on lan/poweroff a Windows-PC.
+[IFTTT](https://ifttt.com/) [Webhook](https://ifttt.com/maker_webhooks) SSL server to suspend/wake on lan/poweroff/reboot a Windows-PC and/or a Raspberry Pi.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@
 ## Configuration/Installation
 
 1. Copy the example configuration to `webhook.ini` and fill in your credentials.
-2. Test the the respective `suspend`,  `wake` or `poweroff` commands without IFTTT connectivity with `sudo webhook.py -v [command]`.
+2. Test the the respective `suspend`,  `wake`, `poweroff`, `poweroff_linux` or `reboot_linux` commands without IFTTT connectivity with `sudo webhook.py -v [command]`.
 3. Create IFTTT applets with an `if this`-Button Widget and a `then that`-Webhook with method `POST`, Content Type `application/json` and a command in the `example.json` format.
 4. Run the server in verbose mock mode (no communication with the Windows-PC) with `sudo webhook.py -m -v` and check the IFTTT applets.
 5. To double check run the server in production mode with just `sudo webhook.py`.
