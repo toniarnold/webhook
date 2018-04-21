@@ -39,10 +39,11 @@ args = parser.parse_args()
 
 config = configparser.ConfigParser()
 config.read('webhook.ini', encoding='utf-8')
+
 # WOL send_magic_packet conf
-MAC = config['wake']['MAC']
-BROADCAST_IP = config['win']['HOST']   # '255.255.255.255'
-DEFAULT_PORT = int(config['wake']['PORT'])
+MAC = config['wake']['mac']
+BROADCAST_IP = '255.255.255.255'	# config['win']['host']
+DEFAULT_PORT = int(config['wake']['port'])
 
 
 logging.basicConfig(level=args.loglevel,
@@ -74,7 +75,7 @@ def command(cmd):
     return True
 
 def wake():
-    _log.debug("Wake up {0}".format(config['win']['host']))
+    _log.debug("Wake up {0}".format(MAC))
     if not args.mock:
         send_magic_packet(MAC)
 
@@ -122,12 +123,15 @@ def remote_command(cmd, remote_user, remote_host):
 def create_magic_packet(macaddress):
     """
     Create a magic packet.
+
     A magic packet is a packet that can be used with the for wake on lan
     protocol to wake up a computer. The packet is constructed from the
     mac address given as a parameter.
-    Keyword arguments:
-    :arg macaddress: the mac address that should be parsed into a magic
-                     packet.
+
+    Args:
+        macaddress (str): the mac address that should be parsed into a
+            magic packet.
+
     """
     if len(macaddress) == 12:
         pass
@@ -150,13 +154,18 @@ def create_magic_packet(macaddress):
 def send_magic_packet(*macs, **kwargs):
     """
     Wake up computers having any of the given mac addresses.
+
     Wake on lan must be enabled on the host device.
-    Keyword arguments:
-    :arguments macs: One or more macaddresses of machines to wake.
-    :key ip_address: the ip address of the host to send the magic packet
+
+    Args:
+        macs (str): One or more macaddresses of machines to wake.
+
+    Keyword Args:
+        ip_address (str): the ip address of the host to send the magic packet
                      to (default "255.255.255.255")
-    :key port: the port of the host to send the magic packet to
+        port (int): the port of the host to send the magic packet to
                (default 9)
+
     """
     packets = []
     ip = kwargs.pop('ip_address', BROADCAST_IP)
@@ -170,13 +179,14 @@ def send_magic_packet(*macs, **kwargs):
         packets.append(packet)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.connect((ip, port))
-    _log.debug("connected to " + ip)
+    _log.debug("connected to {0}".format(ip))
     for packet in packets:
         sock.send(packet)
         _log.debug("sent packet {0}".format(binascii.hexlify(packet)))
     sock.close()
+
 
 
 # HTTPS server
