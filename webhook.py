@@ -42,7 +42,7 @@ config.read('webhook.ini', encoding='utf-8')
 
 # WOL send_magic_packet conf
 MAC = config['wake']['mac']
-BROADCAST_IP = '255.255.255.255'	# config['win']['host']
+BROADCAST_IP = '255.255.255.255'  # for config['win']['host'] comment out sock.setsockopt below
 DEFAULT_PORT = int(config['wake']['port'])
 
 
@@ -179,6 +179,7 @@ def send_magic_packet(*macs, **kwargs):
         packets.append(packet)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # comment out for config['win']['host'] insead of 255.255.255.255:
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.connect((ip, port))
     _log.debug("connected to {0}".format(ip))
