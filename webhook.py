@@ -20,6 +20,7 @@ import cgi
 import json
 import time
 import subprocess
+import urllib.request
 
 
 parser = argparse.ArgumentParser(description=helptext)
@@ -28,6 +29,8 @@ parser.add_argument("-m", "--mock", action="store_true",
     help="""don't actually cause any actions within the network""")
 parser.add_argument('command', nargs='?',
     help="""command to execute directly instead of starting the server""")
+parser.add_argument('argument', nargs='?',
+    help="""argument for the command""")
 parser.add_argument("-q", "--quiet", help="set logging to ERROR",
                     action="store_const", dest="loglevel",
                     const=logging.ERROR, default=logging.INFO)
@@ -41,7 +44,7 @@ config = configparser.ConfigParser()
 config.read('webhook.ini', encoding='utf-8')
 
 # WOL send_magic_packet conf
-MAC = config['wake']['mac']
+MAC = config['wake']['mac']  # if not given as 2nd argument
 BROADCAST_IP = '255.255.255.255'  # for config['win']['host'] comment out sock.setsockopt below
 DEFAULT_PORT = int(config['wake']['port'])
 
@@ -54,54 +57,79 @@ _log = logging.getLogger('webhook')
 
 # Command dispatcher and implementations
 
-def command(cmd):
+def command(cmd, arg):
     """Command dispatcher. Only interpret known commands, otherwise return False."""
     if cmd is None:
         return False
-    _log.info("Received command {0}".format(cmd))
+    _log.info("Received command {0} with argument {1}".format(cmd, arg))
     if cmd == 'wake':
-        wake()
+        wake(arg)
     elif cmd == 'suspend':
         suspend()
     elif cmd == 'poweroff':
-        poweroff()
+        poweroff_win(arg)
     elif cmd == 'poweroff_linux':
         poweroff_linux()
     elif cmd == 'reboot_linux':
         reboot_linux()
+    elif cmd == 'poweroff_buero':
+        poweroff_buero()
     else:
         _log.error("Unknown command {0}".format(cmd))
         return False
     return True
 
-def wake():
-    _log.debug("Wake up {0}".format(MAC))
+def wake(mac):
+    if mac is None:
+        mac = MAC
+    _log.debug("Wake up {0}".format(mac))
     if not args.mock:
-        send_magic_packet(MAC)
+        send_magic_packet(mac)
 
 def suspend():
     _log.debug("Suspend {0}".format(config['win']['host']))
-    remote_command("psshutdown -d -t 00 -v 00", 
+    remote_command("psshutdown -d -t 00 -v 00",
                    config['win']['user'],
                    config['win']['host'])
 
-def poweroff():
-    _log.debug("Poweroff {0}".format(config['win']['host']))
-    remote_command("psshutdown -k -t 00 -v 00", 
-                   config['win']['user'],
-                   config['win']['host'])
+def poweroff_win(userhost):
+    if userhost is None:
+        user = config['win']['user']
+        host = config['win']['host']
+    else:
+        [user, host] = userhost.split('@')
+    _log.debug("Poweroff {0} with ssh user user {1}".format(host, user))
+    remote_command("psshutdown -k -t 00 -v 00", user, host)
 
 def poweroff_linux():
     _log.debug("Poweroff {0}".format(config['linux']['host']))
-    remote_command("sudo chvt 1 ; sudo halt", 
+    remote_command("sudo chvt 1 ; sudo halt",
                    config['linux']['user'],
                    config['linux']['host'])
 
 def reboot_linux():
     _log.debug("Poweroff {0}".format(config['linux']['host']))
-    remote_command("sudo chvt 1 ; sudo reboot", 
+    remote_command("sudo chvt 1 ; sudo reboot",
                    config['linux']['user'],
                    config['linux']['host'])
+
+def poweroff_buero():
+    _log.debug("Poweroff {0}".format(config['buero']['host']))
+    remote_command("sudo halt",
+                   config['buero']['user'],
+                   config['buero']['host'])
+    time.sleep(30)
+    _log.debug("Poweroff Switch {0}".format(config['buero']['switch']))
+    poweroff_switch(config['buero']['switch'])
+
+
+
+# myStrom
+
+def poweroff_switch(switch):
+    if not args.mock:
+        urllib.request.urlopen(
+            "http://[{0}]/relay?state=0".format(switch))
 
 
 # SSH to the Windows PC
@@ -193,12 +221,12 @@ def send_magic_packet(*macs, **kwargs):
 # HTTPS server
 
 class Handler(http.server.BaseHTTPRequestHandler):
-    
+
     def sendresponse(self, code):
         self.send_response(code)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        
+
     def do_GET(self):
         """Only respond with a HTML page to GET requests in verbose mode"""
         if not args.verbose:
@@ -221,26 +249,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         msg = json.loads(raw)
         if args.verbose:
             pp.pprint(msg)
-            
+
         if msg.get('password') != config['webhook']['password']:
             _log.error("Authentication failure")
             time.sleep(10)
             self.sendresponse(403)
             return
 
-        if not command(msg.get('command')):
-            _log.error("Unknown command {0}".format(msg.get('command')))
+        # execute the command with the optional argument
+        cmd = msg.get('command')
+        arg = msg.get('argument')
+        if not command(cmd, arg):
+            _log.error("Unknown command {0} with argumend {1}".format(cmd, arg))
             self.sendresponse(400)
             return
-        
-        self.sendresponse(200) 
-  
+
+        self.sendresponse(200)
+
 
 def start_http():
     httpd = socketserver.TCPServer(("", int(config['webhook']['https_port'])), Handler)
-    httpd.socket = ssl.wrap_socket(httpd.socket, 
+    httpd.socket = ssl.wrap_socket(httpd.socket,
        keyfile=os.path.join(config['webhook']['ssl_dir'], config['webhook']['ssl_key']),
-       certfile=os.path.join(config['webhook']['ssl_dir'], config['webhook']['ssl_cert']), 
+       certfile=os.path.join(config['webhook']['ssl_dir'], config['webhook']['ssl_cert']),
        server_side=True)
     _log.info("Starting the webhook.py server")
     try:
@@ -253,6 +284,6 @@ def start_http():
 
 if __name__ == '__main__':
     if args.command:
-        command(args.command)
+        command(args.command, args.argument)
     else:
         start_http()

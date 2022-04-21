@@ -1,4 +1,5 @@
 {
     "password": "Webhook-Password",
     "command": "wake"
+	"argument": "00-00-00-00-00-00"
 }

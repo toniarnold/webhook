@@ -3,7 +3,7 @@
 
 ## Prerequisites
 
-1. Windows ssh server with key authentication to logon, e.g. [Bitvise SSH Server](https://www.bitvise.com/winsshd).
+1. Win7: Windows ssh server with key authentication to logon, e.g. [Bitvise SSH Server](https://www.bitvise.com/winsshd). Win10 has a built-in OpenSSH Server as an optional feature.
 2. [Sysinternals PsShutdown](https://docs.microsoft.com/en-us/sysinternals/downloads/psshutdown) configured to run as administrator.
 3. Windows and NIC configured for Wake On Lan (WOL) with a magic packet.
 4. Linux server with systemd and Python 3.5+, e.g. a [Raspberry Pi](https://www.raspberrypi.org/learning/hardware-guide/components/raspberry-pi/).
@@ -18,3 +18,8 @@
 4. Run the server in verbose mock mode (no communication with the Windows-PC) with `sudo webhook.py -m -v` and check the IFTTT applets.
 5. To double check run the server in production mode with just `sudo webhook.py`.
 6. Run `sudo make install` to install the `webhook.service` as a system service.
+
+
+## Changes
+
+2022-04-21: Added an optional `argument` for `wake` and `poweroff` to override the `mac` resp. `host` configured in `webhook.ini`.
